@@ -52,20 +52,22 @@ class Player {
         if (this.vx < this.speed_limit) this.vx -= this.thrust*Math.sin(this.alpha) * dt;
         if (this.vx < this.speed_limit) this.vy -= this.thrust*Math.cos(this.alpha) * dt;
 
-        const collision = borders[0].check_collision(this.x, this.y, 10)
-        if (collision) {
-            [this.vx, this.vy] = this.perform_collision(collision[0], collision[1], this.vx, this.vy);
+        for (const border of borders) {
+            const [dist, t] = border.check_interaction(this);
+            if (dist > this.radius) continue;
+            const [t_x, t_y] = border.get_tangent(this, t, dist);
+            [this.vx, this.vy] = this.perform_collision(t_x, t_y, this.vx, this.vy);
         }
 
         this.x += this.vx;
         this.y += this.vy;
 
     }
-    perform_collision(l_x_norm, l_y_norm, vx, vy) {
-        const v_b_x = l_x_norm*vx + l_y_norm*vy;
-        const v_b_y = l_y_norm*vx - l_x_norm*vy;
-        const vx_c = l_x_norm*v_b_x - l_y_norm*v_b_y;
-        const vy_c = l_y_norm*v_b_x + l_x_norm*v_b_y;
+    perform_collision(t_x, t_y, vx, vy) {
+        const v_b_x = t_x*vx + t_y*vy;
+        const v_b_y = t_y*vx - t_x*vy;
+        const vx_c = t_x*v_b_x - t_y*v_b_y;
+        const vy_c = t_y*v_b_x + t_x*v_b_y;
         return [vx_c, vy_c];
     }
     draw() {
@@ -103,30 +105,28 @@ class Border {
         this.l_x_norm = this.l_x / this.length;
         this.l_y_norm = this.l_y / this.length;
     }
-    check_collision(x, y, threshold) {
-        const p_x = x - this.x1;
-        const p_y = y - this.y1;
+    check_interaction(player) {
+        const p_x = player.x - this.x1;
+        const p_y = player.y - this.y1;
         var t = (p_x*this.l_x + p_y*this.l_y) / (this.l_x*this.l_x + this.l_y*this.l_y);
         t = Math.max(0, Math.min(1, t));
         const p_l_x = this.x1 + t*this.l_x; 
         const p_l_y = this.y1 + t*this.l_y; 
-        const dx = x - p_l_x;
-        const dy = y - p_l_y;
+        const dx = player.x - p_l_x;
+        const dy = player.y - p_l_y;
         const dist = Math.sqrt(dx*dx + dy*dy);
-
-        if (dist > threshold) return false;
+        return [dist, t]
+    }
+    get_tangent(player, t, dist) {
         if (0 < t && t < 1) return [this.l_x_norm, this.l_y_norm];
-        
         if (t == 0) {
-            return [p_y/dist, -p_x/dist]
+            const p_x = player.x - this.x1;
+            const p_y = player.y - this.y1;
+            return [p_y/dist, -p_x/dist];
         }
-
-        if (t == 1) {
-            const p_x_2 = x - this.x2;
-            const p_y_2 = y - this.y2;
-            return [p_y_2/dist, -p_x_2/dist]
-        }
-
+        const p_x_2 = player.x - this.x2;
+        const p_y_2 = player.y - this.y2;
+        return [p_y_2/dist, -p_x_2/dist]
     }
     draw() {
         ctx.beginPath();
@@ -172,7 +172,14 @@ class Particle {
 }
 
 
-borders = [new Border(canvasWidth/2 -100, canvasHeight/2 +100, canvasWidth/2 +100, canvasHeight/2 + 50)]
+borders = [
+    new Border(canvasWidth/2 -200, canvasHeight/2 +150, canvasWidth/2 +150, canvasHeight/2 +200),
+    new Border(canvasWidth/2 +150, canvasHeight/2 +200, canvasWidth/2 +200, canvasHeight/2 +50),
+    new Border(canvasWidth/2 +200, canvasHeight/2 +50, canvasWidth/2 +100, canvasHeight/2 -150),
+    new Border(canvasWidth/2 +100, canvasHeight/2 -150, canvasWidth/2 -150, canvasHeight/2 -150),
+    new Border(canvasWidth/2 -150, canvasHeight/2 -150, canvasWidth/2 -200, canvasHeight/2 +150),
+
+]
 
 player = new Player()
 function main(dt) {
