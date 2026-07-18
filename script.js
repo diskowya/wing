@@ -25,7 +25,8 @@ class Player {
         this.alpha = 0;
         this.radius = 10;
         this.dAlpha = 0;
-        this.thrust = 1;
+        this.thrust = 5;
+        this.friction = 0.004;
         this.speed_limit = 10;
 
         this.rightInput = false;
@@ -41,27 +42,31 @@ class Player {
     }
     step(dt) {
         dt = !isNaN(dt) ? dt : 0;
-
-        if (this.leftInput && this.dAlpha < 15) this.dAlpha += 1;
-        if (this.rightInput && this.dAlpha > -15) this.dAlpha -= 1;
-        if (!this.leftInput && !this.rightInput) {
-            this.dAlpha += this.dAlpha > 0 ? -1 : this.dAlpha < 0 ? 1 : 0;
+        if (this.leftInput && this.dAlpha < 1) this.dAlpha += 10*dt;
+        if (this.rightInput && this.dAlpha > -1) this.dAlpha -= 10*dt;
+        if (this.leftInput == this.rightInput) {
+            this.dAlpha *= Math.pow(0.001, dt);
         };
-        this.alpha += 0.3*this.dAlpha*dt;
+        this.alpha += 6*dt*Math.tanh(this.dAlpha);
         
-        if (this.vx < this.speed_limit) this.vx -= this.thrust*Math.sin(this.alpha) * dt;
-        if (this.vx < this.speed_limit) this.vy -= this.thrust*Math.cos(this.alpha) * dt;
+        if (!(this.leftInput && this.rightInput)) {
+            if (this.vx < this.speed_limit) this.vx -= this.thrust*Math.sin(this.alpha) * dt;
+            if (this.vx < this.speed_limit) this.vy -= this.thrust*Math.cos(this.alpha) * dt;
+        }
+
+        const friction = this.friction*Math.sqrt(this.vx*this.vx + this.vy*this.vy);
+        this.vx -= this.vx*friction;
+        this.vy -= this.vy*friction;
 
         for (const border of borders) {
-            const [dist, t] = border.check_interaction(this);
-            if (dist > this.radius) continue;
+            const [dist, t, approaching] = border.check_interaction(this);
+            if (dist > this.radius || !approaching) continue;
             const [t_x, t_y] = border.get_tangent(this, t, dist);
             [this.vx, this.vy] = this.perform_collision(t_x, t_y, this.vx, this.vy);
         }
 
         this.x += this.vx;
         this.y += this.vy;
-
     }
     perform_collision(t_x, t_y, vx, vy) {
         const v_b_x = t_x*vx + t_y*vy;
@@ -74,8 +79,8 @@ class Player {
         const x = this.x;
         const y = this.y;
         const a = this.alpha;
-        const s = 6;
-        const c = 1.5;
+        const s = this.radius*0.6;
+        const c = 2;
 
         const s_sin_a = s*sin(a);
         const s_cos_a = s*cos(a);
@@ -115,7 +120,8 @@ class Border {
         const dx = player.x - p_l_x;
         const dy = player.y - p_l_y;
         const dist = Math.sqrt(dx*dx + dy*dy);
-        return [dist, t]
+        const approaching = player.vx*dx + player.vy*dy < 0;
+        return [dist, t, approaching]
     }
     get_tangent(player, t, dist) {
         if (0 < t && t < 1) return [this.l_x_norm, this.l_y_norm];
