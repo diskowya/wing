@@ -16,16 +16,23 @@ function resizeCanvas() {
 addEventListener("resize", (event) => resizeCanvas());
 resizeCanvas();
 
+const mouse = {x: 0, y: 0};
+canvas.addEventListener("mousemove", (e) => {
+    const rect = canvas.getBoundingClientRect();
+    mouse.x = e.clientX - rect.left;
+    mouse.y = e.clientY - rect.top;
+});
+
 class Player {
     constructor() {
         this.x = canvasWidth/2;
         this.y = canvasHeight/2;
         this.vx = 0;
         this.vy = 0;
-        this.alpha = 0;
+        this.alpha = PI;
         this.radius = 8;
         this.dAlpha = 0;
-        this.thrust = 5;
+        this.thrust = 1;
         this.friction_dyn = 0.004;
         this.friction_stat = 0.001;
         this.speed_limit = 10;
@@ -66,12 +73,13 @@ class Player {
             }
         }
 
-        const b = borders[0];
+        const b = borders[3];
         const [dist, t, n_x, n_y] = b.check_interaction(this);
+        this.calculate_thrust_factor(dir_x, dir_y, n_x, n_y);
 
         if (!(this.leftInput && this.rightInput)) {
-            if (this.vx < this.speed_limit) this.vx -= this.thrust*dir_x * dt;
-            if (this.vx < this.speed_limit) this.vy -= this.thrust*dir_y * dt;
+            if (this.vx < this.speed_limit) this.vx += this.thrust*dir_x * dt;
+            if (this.vx < this.speed_limit) this.vy += this.thrust*dir_y * dt;
         }
 
         this.vy += this.gravity*dt;
@@ -82,6 +90,9 @@ class Player {
 
         this.x += this.vx;
         this.y += this.vy;
+
+        //this.x = mouse.x;
+        //this.y = mouse.y;
     }
     perform_collision(t_x, t_y, vx, vy) {
         const v_b_x = t_x*vx + t_y*vy;
@@ -96,6 +107,9 @@ class Player {
         y += this.radius*n_y;
         return [x, y]
     }
+    calculate_thrust_factor(dir_x, dir_y, n_x, n_y) {
+        console.log(dir_x*n_x, dir_y,n_y)
+    }
     draw() {
         const x = this.x;
         const y = this.y;
@@ -103,13 +117,13 @@ class Player {
         const s = this.radius*0.6;
         const c = 2;
 
-        const s_sin_a = s*sin(a);
-        const s_cos_a = s*cos(a);
+        const s_sin_a = -s*sin(a);
+        const s_cos_a = -s*cos(a);
         const s_c_sin_a = c*s_sin_a;
         const s_c_cos_a = c*s_cos_a;
 
         ctx.beginPath();
-        ctx.arc(x + s_c_sin_a, y + s_c_cos_a, 0.8*s, PI - a, -a);
+        ctx.arc(x + s_c_sin_a, y + s_c_cos_a, 0.8*s, -a, PI - a);
         ctx.lineTo(x + 2*s_cos_a + s_c_sin_a, y - 2*s_sin_a + s_c_cos_a);
         ctx.lineTo(x - 5*s_sin_a + s_c_sin_a, y - 5*s_cos_a + s_c_cos_a);
         ctx.lineTo(x - 2*s_cos_a + s_c_sin_a, y + 2*s_sin_a + s_c_cos_a);
