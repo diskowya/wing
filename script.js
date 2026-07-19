@@ -23,11 +23,13 @@ class Player {
         this.vx = 0;
         this.vy = 0;
         this.alpha = 0;
-        this.radius = 10;
+        this.radius = 8;
         this.dAlpha = 0;
         this.thrust = 5;
-        this.friction = 0.004;
+        this.friction_dyn = 0.004;
+        this.friction_stat = 0.001;
         this.speed_limit = 10;
+        this.gravity = 0;
 
         this.rightInput = false;
         this.leftInput = false;
@@ -49,21 +51,34 @@ class Player {
         };
         this.alpha += 6*dt*Math.tanh(this.dAlpha);
         
-        if (!(this.leftInput && this.rightInput)) {
-            if (this.vx < this.speed_limit) this.vx -= this.thrust*Math.sin(this.alpha) * dt;
-            if (this.vx < this.speed_limit) this.vy -= this.thrust*Math.cos(this.alpha) * dt;
-        }
-
-        const friction = this.friction*Math.sqrt(this.vx*this.vx + this.vy*this.vy);
-        this.vx -= this.vx*friction;
-        this.vy -= this.vy*friction;
+        const dir_x = Math.sin(this.alpha);
+        const dir_y = Math.cos(this.alpha);
 
         for (const border of borders) {
-            const [dist, t, approaching] = border.check_interaction(this);
-            if (dist > this.radius || !approaching) continue;
-            const [t_x, t_y] = border.get_tangent(this, t, dist);
-            [this.vx, this.vy] = this.perform_collision(t_x, t_y, this.vx, this.vy);
+            const [dist, t, n_x, n_y] = border.check_interaction(this);
+            const approaching = this.vx*n_x + this.vy*n_y < 0;
+            if (dist < this.radius) {
+                [this.x, this.y] = this.correct_pos(border, t, dist, n_x, n_y);
+                if (approaching) {
+                    const [t_x, t_y] = border.get_tangent(this, t, dist);
+                    [this.vx, this.vy] = this.perform_collision(t_x, t_y, this.vx, this.vy);
+                }
+            }
         }
+
+        const b = borders[0];
+        const [dist, t, n_x, n_y] = b.check_interaction(this);
+
+        if (!(this.leftInput && this.rightInput)) {
+            if (this.vx < this.speed_limit) this.vx -= this.thrust*dir_x * dt;
+            if (this.vx < this.speed_limit) this.vy -= this.thrust*dir_y * dt;
+        }
+
+        this.vy += this.gravity*dt;
+
+        const friction = this.friction_dyn*Math.sqrt(this.vx*this.vx + this.vy*this.vy) + this.friction_stat;
+        this.vx -= this.vx*friction;
+        this.vy -= this.vy*friction;
 
         this.x += this.vx;
         this.y += this.vy;
@@ -74,6 +89,12 @@ class Player {
         const vx_c = t_x*v_b_x - t_y*v_b_y;
         const vy_c = t_y*v_b_x + t_x*v_b_y;
         return [vx_c, vy_c];
+    }
+    correct_pos(border, t, dist, n_x, n_y) {
+        var [x, y] = border.get_point(t);
+        x += this.radius*n_x;
+        y += this.radius*n_y;
+        return [x, y]
     }
     draw() {
         const x = this.x;
@@ -120,8 +141,9 @@ class Border {
         const dx = player.x - p_l_x;
         const dy = player.y - p_l_y;
         const dist = Math.sqrt(dx*dx + dy*dy);
-        const approaching = player.vx*dx + player.vy*dy < 0;
-        return [dist, t, approaching]
+        const n_x = dx/dist;
+        const n_y = dy/dist;
+        return [dist, t, n_x, n_y]
     }
     get_tangent(player, t, dist) {
         if (0 < t && t < 1) return [this.l_x_norm, this.l_y_norm];
@@ -134,9 +156,15 @@ class Border {
         const p_y_2 = player.y - this.y2;
         return [p_y_2/dist, -p_x_2/dist]
     }
+    get_point(t) {
+        const p_t_x = this.x1 + t*this.l_x;
+        const p_t_y = this.y1 + t*this.l_y;
+        return [p_t_x, p_t_y];
+    }
     draw() {
         ctx.beginPath();
         ctx.lineWidth = 2;
+        ctx.strokeStyle = "black"
         ctx.moveTo(this.x1, this.y1);
         ctx.lineTo(this.x2, this.y2);
         ctx.stroke();
